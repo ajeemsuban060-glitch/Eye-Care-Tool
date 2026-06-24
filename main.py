@@ -92,18 +92,23 @@ class EyeCareApp:
         if "telegram" in self.config.notification_channels:
             self.telegram_notifier.send()
 
-        # Console prompt for user response (fallback)
+               # Console prompt for user response (only if fallback is enabled)
         response = "unknown"
-        print("\n" + "=" * 50)
-        print("BREAK TIME! Look 20 feet away for 20 seconds.")
-        print("Press ENTER when done (or type 'snooze' to delay).")
-        try:
-            user_input = input("> ").strip().lower()
-            response = "snoozed" if user_input == "snooze" else "taken"
-        except KeyboardInterrupt:
-            print("\nBreak interrupted, marking as taken.")
+        if self.config.fallback_to_console:
+            print("\n" + "=" * 50)
+            print("BREAK TIME! Look 20 feet away for 20 seconds.")
+            print("Press ENTER when done (or type 'snooze' to delay).")
+            try:
+                user_input = input("> ").strip().lower()
+                response = "snoozed" if user_input == "snooze" else "taken"
+            except KeyboardInterrupt:
+                print("\nBreak interrupted, marking as taken.")
+                response = "taken"
+            print("=" * 50 + "\n")
+        else:
+            # Automation mode: auto-dismiss
             response = "taken"
-        print("=" * 50 + "\n")
+            logger.info("Automation mode: break auto-dismissed.")
 
         # Handle snooze
         if response == "snoozed":
