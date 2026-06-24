@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Entry point for the 20-20-20 Eye Care Tool (Phase 1)."""
+"""Entry point for the 20-20-20 Eye Care Tool (Phase 2)."""
 
 import logging
 import time
@@ -11,8 +11,8 @@ from core.config import default_config
 from core.activity_monitor import ActivityMonitor
 from core.scheduler import Scheduler
 from notify.desktop_notifier import DesktopNotifier
+from notify.telegram_notifier import TelegramNotifier
 from storage.db import Database
-from storage.models import Session
 
 # Setup logging
 logging.basicConfig(
@@ -28,10 +28,17 @@ class EyeCareApp:
 
     def __init__(self) -> None:
         self.config = default_config
+
+        # DEBUG: Print loaded config values
+        print(f"DEBUG: active_interval = {self.config.active_interval_seconds}")
+        print(f"DEBUG: idle_threshold = {self.config.idle_threshold_seconds}")
+        print(f"DEBUG: locale = {self.config.locale}")
+
         self.db = Database(self.config)
         self.monitor = ActivityMonitor(self.config)
         self.scheduler = Scheduler(self.config)
-        self.notifier = DesktopNotifier(self.config)
+        self.desktop_notifier = DesktopNotifier(self.config)
+        self.telegram_notifier = TelegramNotifier(self.config)
 
         self.current_session_id: int = 0
         self._shutdown_requested = False
@@ -43,7 +50,6 @@ class EyeCareApp:
         self._start_session()
 
     def _start_session(self) -> None:
-        """Insert a new session record and store its ID."""
         now = datetime.now().isoformat()
         conn = self.db.connection
         cursor = conn.execute(
@@ -55,7 +61,6 @@ class EyeCareApp:
         logger.info("Started session ID %d", self.current_session_id)
 
     def _end_current_session(self) -> None:
-        """Update the current session's ended_at timestamp."""
         if self.current_session_id:
             now = datetime.now().isoformat()
             self.db.connection.execute(
@@ -66,33 +71,60 @@ class EyeCareApp:
             logger.info("Ended session ID %d", self.current_session_id)
 
     def _on_break(self) -> None:
-        """Called when a break is triggered."""
         active_secs = self.monitor.active_seconds
         triggered_at = datetime.now().isoformat()
-
-        # Log the break event
         conn = self.db.connection
-        conn.execute(
+
+        # Insert break record
+        cursor = conn.execute(
             """INSERT INTO breaks
-               (session_id, triggered_at, trigger_reason, active_seconds_before_break)
-               VALUES (?, ?, ?, ?)""",
+                (session_id, triggered_at, trigger_reason, active_seconds_before_break)
+                VALUES (?, ?, ?, ?)""",
             (self.current_session_id, triggered_at, "time", active_secs)
+        )
+        break_id = cursor.lastrowid
+        conn.commit()
+
+        # Send notifications (desktop + Telegram)
+        if "desktop" in self.config.notification_channels:
+            self.desktop_notifier.send()
+
+        if "telegram" in self.config.notification_channels:
+            self.telegram_notifier.send()
+
+        # Console prompt for user response (fallback)
+        response = "unknown"
+        print("\n" + "=" * 50)
+        print("BREAK TIME! Look 20 feet away for 20 seconds.")
+        print("Press ENTER when done (or type 'snooze' to delay).")
+        try:
+            user_input = input("> ").strip().lower()
+            response = "snoozed" if user_input == "snooze" else "taken"
+        except KeyboardInterrupt:
+            print("\nBreak interrupted, marking as taken.")
+            response = "taken"
+        print("=" * 50 + "\n")
+
+        # Handle snooze
+        if response == "snoozed":
+            self.scheduler.snooze(self.config.snooze_duration_seconds)
+
+        # Update break row with user_response
+        conn.execute(
+            "UPDATE breaks SET user_response = ? WHERE id = ?",
+            (response, break_id)
         )
         conn.commit()
 
-        # Send desktop notification
-        self.notifier.send()
-
         # Reset active seconds
         self.monitor.reset()
-        logger.info("Break triggered at %s, active seconds=%d", triggered_at, active_secs)
+        logger.info("Break triggered at %s, active seconds=%d, response=%s",
+                    triggered_at, active_secs, response)
 
     def _activity_tick(self, active_seconds: int) -> None:
-        """Called every second by the activity monitor."""
         self.scheduler.tick(active_seconds)
 
     def run(self) -> None:
-        """Start the application and run until shutdown signal."""
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
 
@@ -110,7 +142,6 @@ class EyeCareApp:
         self._shutdown_requested = True
 
     def shutdown(self) -> None:
-        """Clean shutdown of all components."""
         logger.info("Shutting down...")
         self.monitor.stop()
         self.scheduler.stop()

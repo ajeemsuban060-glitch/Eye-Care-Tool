@@ -29,12 +29,15 @@ class DesktopNotifier:
         try:
             with open(locale_path, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except FileNotFoundError:
-            logger.error("Locale file '%s' not found. Falling back to English.", locale_path)
-            return self._load_locale("en")
-        except json.JSONDecodeError as e:
-            logger.error("Invalid JSON in locale file: %s", e)
-            return self._load_locale("en")
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            logger.error("Failed to load locale '%s': %s. Using English fallback.", locale, e)
+            # Hardcoded fallback (no recursion)
+            return {
+                "break_title": "Eye Break Time!",
+                "break_body": "Look at something 20 feet away for 20 seconds.",
+                "snooze": "Remind again",
+                "dismiss": "Done"
+            }
 
     def send(self, title_key: str = "break_title", body_key: str = "break_body") -> bool:
         """

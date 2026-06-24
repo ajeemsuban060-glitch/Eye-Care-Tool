@@ -87,6 +87,9 @@ class ActivityMonitor:
                 if idle_sec < self.idle_threshold:
                     self._active_seconds += 1
                 # else: idle, do not increment
+                else:
+                    #print("Idle") #optional
+                    pass
                 current_active = self._active_seconds
 
             if self._on_tick_callback:

@@ -12,8 +12,7 @@ logger = logging.getLogger(__name__)
 class Scheduler:
     """
     State machine that monitors active seconds and fires break events.
-
-    It calls a callback when active_seconds reaches ACTIVE_INTERVAL.
+    Supports snooze delay.
     """
 
     def __init__(self, config: Optional[Config] = None) -> None:
@@ -23,13 +22,12 @@ class Scheduler:
         self._running = False
         self._monitor_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
+        self._snooze_until: float = 0.0  # timestamp when snooze ends
 
     def set_break_callback(self, callback: Callable[[], None]) -> None:
-        """Set the function to call when a break is due."""
         self._break_callback = callback
 
     def start(self) -> None:
-        """Start the scheduler (must be called after set_break_callback)."""
         if self._running:
             return
         if self._break_callback is None:
@@ -40,7 +38,6 @@ class Scheduler:
         self._monitor_thread.start()
 
     def stop(self) -> None:
-        """Stop the scheduler."""
         if not self._running:
             return
         self._running = False
@@ -48,33 +45,27 @@ class Scheduler:
         if self._monitor_thread and self._monitor_thread.is_alive():
             self._monitor_thread.join(timeout=1.0)
 
+    def snooze(self, duration_seconds: int) -> None:
+        """Set a snooze delay, ignoring break triggers for duration."""
+        self._snooze_until = time.time() + duration_seconds
+        logger.info("Snoozed until %s", time.ctime(self._snooze_until))
+
     def _monitor_loop(self) -> None:
-        """
-        Periodically check active_seconds and trigger break when threshold reached.
-        This loop does NOT run every second; it checks every 0.5s for responsiveness.
-        """
-        # We need a reference to the activity monitor to read active_seconds.
-        # This will be set via a method later; for now we assume the main
-        # program wires it. We'll use a global variable? Better to pass via constructor.
-        # For Phase 1, we'll rely on the main loop to call check() externally.
-        # Simpler: we'll have the main loop call scheduler.tick(active_seconds).
-        # But the spec says scheduler watches active_seconds. Let's implement
-        # a tick method that is called by the activity monitor's on_tick.
-        # So scheduler will not have its own loop; it will react to ticks.
-        pass
+        """Periodically check active_seconds and trigger break when threshold reached."""
+        # We rely on the main loop calling tick() each second.
+        # This thread just sleeps until stop.
+        while not self._stop_event.is_set():
+            time.sleep(0.1)
 
     def tick(self, active_seconds: int) -> None:
-        """
-        Called every second with the current active seconds.
-
-        If active_seconds >= interval and we are not in a break state,
-        trigger the break callback and reset the counter (will be done externally).
-        """
+        """Called every second with current active seconds."""
         if not self._running:
             return
         if self._break_callback is None:
             return
+        # Check snooze
+        if self._snooze_until > time.time():
+            # Snooze active, do not trigger
+            return
         if active_seconds >= self.active_interval:
-            # Trigger break
-            logger.info("Break triggered after %d active seconds.", active_seconds)
             self._break_callback()
