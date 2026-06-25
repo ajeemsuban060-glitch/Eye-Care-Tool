@@ -9,7 +9,7 @@ from typing import Optional, List
 class Config:
     """User-configurable parameters."""
     idle_threshold_seconds: int = 10
-    active_interval_seconds: int = 1200
+    active_interval_seconds: int= 1200
     locale: str = "ta"
     notification_channels: List[str] = field(default_factory=lambda: ["desktop"])
     telegram_bot_token: Optional[str] = None

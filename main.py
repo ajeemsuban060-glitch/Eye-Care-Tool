@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Entry point for the 20-20-20 Eye Care Tool (Phase 2)."""
+"""Entry point – Tkinter event‑driven version with GUI dialogs."""
 
 import logging
-import time
 import signal
-import sys
+import threading
+import time
 from datetime import datetime
+import tkinter as tk
+from tkinter import messagebox
 
 from core.config import default_config
 from core.activity_monitor import ActivityMonitor
@@ -14,33 +16,24 @@ from notify.desktop_notifier import DesktopNotifier
 from notify.telegram_notifier import TelegramNotifier
 from storage.db import Database
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 class EyeCareApp:
-    """
-    Main application that wires together all components.
-    """
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Eye Care Tool")
+        self.root.withdraw()          # hide main window (runs in background)
 
-    def __init__(self) -> None:
         self.config = default_config
-
-        # DEBUG: Print loaded config values
-        print(f"DEBUG: active_interval = {self.config.active_interval_seconds}")
-        print(f"DEBUG: idle_threshold = {self.config.idle_threshold_seconds}")
-        print(f"DEBUG: locale = {self.config.locale}")
-
         self.db = Database(self.config)
         self.monitor = ActivityMonitor(self.config)
         self.scheduler = Scheduler(self.config)
         self.desktop_notifier = DesktopNotifier(self.config)
         self.telegram_notifier = TelegramNotifier(self.config)
 
-        self.current_session_id: int = 0
+        self.current_session_id = 0
         self._shutdown_requested = False
 
         # Set scheduler callback
@@ -49,18 +42,27 @@ class EyeCareApp:
         # Start a new session
         self._start_session()
 
-    def _start_session(self) -> None:
+        # Start the activity monitor (runs in background thread)
+        self.monitor.start(on_tick=self._activity_tick)
+        self.scheduler.start()
+
+        logger.info("Eye Care Tool started (Tkinter backend).")
+
+        # Schedule the first check immediately, then every second
+        self._check_loop()
+
+        # Handle window close
+        self.root.protocol("WM_DELETE_WINDOW", self.shutdown)
+
+    def _start_session(self):
         now = datetime.now().isoformat()
         conn = self.db.connection
-        cursor = conn.execute(
-            "INSERT INTO sessions (started_at) VALUES (?)",
-            (now,)
-        )
+        cursor = conn.execute("INSERT INTO sessions (started_at) VALUES (?)", (now,))
         self.current_session_id = cursor.lastrowid
         conn.commit()
         logger.info("Started session ID %d", self.current_session_id)
 
-    def _end_current_session(self) -> None:
+    def _end_current_session(self):
         if self.current_session_id:
             now = datetime.now().isoformat()
             self.db.connection.execute(
@@ -70,7 +72,19 @@ class EyeCareApp:
             self.db.connection.commit()
             logger.info("Ended session ID %d", self.current_session_id)
 
-    def _on_break(self) -> None:
+    def _activity_tick(self, active_seconds):
+        """Called every second by the activity monitor."""
+        self.scheduler.tick(active_seconds)
+
+    def _check_loop(self):
+        """Called repeatedly via Tkinter's after() to keep the app alive."""
+        if self._shutdown_requested:
+            return
+        # Check for any pending events (like shutdown signal)
+        self.root.after(1000, self._check_loop)
+
+    def _on_break(self):
+        """Break callback – shows a modal dialog with buttons."""
         active_secs = self.monitor.active_seconds
         triggered_at = datetime.now().isoformat()
         conn = self.db.connection
@@ -78,37 +92,21 @@ class EyeCareApp:
         # Insert break record
         cursor = conn.execute(
             """INSERT INTO breaks
-                (session_id, triggered_at, trigger_reason, active_seconds_before_break)
-                VALUES (?, ?, ?, ?)""",
+               (session_id, triggered_at, trigger_reason, active_seconds_before_break)
+               VALUES (?, ?, ?, ?)""",
             (self.current_session_id, triggered_at, "time", active_secs)
         )
         break_id = cursor.lastrowid
         conn.commit()
 
-        # Send notifications (desktop + Telegram)
+        # Send desktop and Telegram notifications (non‑blocking)
         if "desktop" in self.config.notification_channels:
             self.desktop_notifier.send()
-
         if "telegram" in self.config.notification_channels:
             self.telegram_notifier.send()
 
-               # Console prompt for user response (only if fallback is enabled)
-        response = "unknown"
-        if self.config.fallback_to_console:
-            print("\n" + "=" * 50)
-            print("BREAK TIME! Look 20 feet away for 20 seconds.")
-            print("Press ENTER when done (or type 'snooze' to delay).")
-            try:
-                user_input = input("> ").strip().lower()
-                response = "snoozed" if user_input == "snooze" else "taken"
-            except KeyboardInterrupt:
-                print("\nBreak interrupted, marking as taken.")
-                response = "taken"
-            print("=" * 50 + "\n")
-        else:
-            # Automation mode: auto-dismiss
-            response = "taken"
-            logger.info("Automation mode: break auto-dismissed.")
+        # Now show a modal Tkinter dialog (blocks until user clicks)
+        response = self._show_dialog()
 
         # Handle snooze
         if response == "snoozed":
@@ -123,37 +121,78 @@ class EyeCareApp:
 
         # Reset active seconds
         self.monitor.reset()
-        logger.info("Break triggered at %s, active seconds=%d, response=%s",
-                    triggered_at, active_secs, response)
+        logger.info("Break triggered, active seconds=%d, response=%s",
+                    active_secs, response)
 
-    def _activity_tick(self, active_seconds: int) -> None:
-        self.scheduler.tick(active_seconds)
+    def _show_dialog(self):
+        """Create a modal dialog with Dismiss and Snooze buttons."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Eye Break")
+        dialog.geometry("350x150")
+        dialog.resizable(False, False)
+        dialog.attributes('-topmost', True)
+        dialog.grab_set()   # modal
 
-    def run(self) -> None:
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
+        # Load locale messages (use Tamil if configured)
+        from notify.desktop_notifier import DesktopNotifier
+        notifier = DesktopNotifier(self.config)
+        messages = notifier._messages
+        title = messages.get("break_title", "Eye Break")
+        body = messages.get("break_body", "Look 20 feet away for 20 seconds.")
 
-        self.monitor.start(on_tick=self._activity_tick)
-        self.scheduler.start()
+        # Message
+        label = tk.Label(dialog, text=body, wraplength=300, justify="center", font=("Arial", 12))
+        label.pack(pady=10)
 
-        logger.info("Eye Care Tool started. Press Ctrl+C to stop.")
-        while not self._shutdown_requested:
-            time.sleep(1)
+        # Response variable
+        response_var = tk.StringVar(value="unknown")
 
-        self.shutdown()
+        def on_dismiss():
+            response_var.set("taken")
+            dialog.destroy()
 
-    def _signal_handler(self, signum, frame) -> None:
-        logger.info("Received shutdown signal.")
+        def on_snooze():
+            response_var.set("snoozed")
+            dialog.destroy()
+
+        # Buttons
+        frame = tk.Frame(dialog)
+        frame.pack(pady=10)
+        btn_dismiss = tk.Button(frame, text="Dismiss (Done)", command=on_dismiss, width=12)
+        btn_dismiss.pack(side=tk.LEFT, padx=5)
+        btn_snooze = tk.Button(frame, text="Snooze (1 min)", command=on_snooze, width=12)
+        btn_snooze.pack(side=tk.RIGHT, padx=5)
+
+        # If user closes window via X, treat as Dismiss
+        dialog.protocol("WM_DELETE_WINDOW", on_dismiss)
+
+        # Center the window
+        dialog.update_idletasks()
+        w = dialog.winfo_width()
+        h = dialog.winfo_height()
+        x = (dialog.winfo_screenwidth() // 2) - (w // 2)
+        y = (dialog.winfo_screenheight() // 2) - (h // 2)
+        dialog.geometry(f"{w}x{h}+{x}+{y}")
+
+        # Wait for the dialog to close
+        self.root.wait_window(dialog)
+        return response_var.get()
+
+    def shutdown(self):
+        """Clean shutdown."""
+        if self._shutdown_requested:
+            return
         self._shutdown_requested = True
-
-    def shutdown(self) -> None:
         logger.info("Shutting down...")
         self.monitor.stop()
         self.scheduler.stop()
         self._end_current_session()
         self.db.close()
+        self.root.quit()
+        self.root.destroy()
         logger.info("Shutdown complete.")
 
 if __name__ == "__main__":
-    app = EyeCareApp()
-    app.run()
+    root = tk.Tk()
+    app = EyeCareApp(root)
+    root.mainloop()
