@@ -220,7 +220,7 @@ pynput (initial) and Windows GetLastInputInfo for activity tracking.
 Telegram Bot API for remote notifications.
 
 👨‍💻 Author
-Ajeem Suban – GitHub
+Ajeem Suban – ajeemsuban060-glitch
 
 Take care of your eyes – they’re the only pair you’ve got. 👁️💙
 
