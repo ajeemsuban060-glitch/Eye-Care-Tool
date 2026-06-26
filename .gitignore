@@ -1,0 +1,25 @@
+# Python cache 
+__pycache__/ 
+*.pyc 
+*.pyo 
+# Database files 
+*.sqlite 
+*.sqlite3 
+# Secrets 
+config.json 
+.env 
+# IDE 
+.vscode/ 
+.idea/ 
+# OS 
+.DS_Store 
+Thumbs.db 
+# Logs 
+*.log 
+# Build artifacts 
+dist/ 
+build/ 
+*.spec 
+# Virtual environments 
+venv/ 
+env/ 

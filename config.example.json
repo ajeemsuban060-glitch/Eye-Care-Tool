@@ -1,0 +1,9 @@
+{
+  "idle_threshold_seconds": 10,
+  "active_interval_seconds": 1200,
+  "locale": "ta",
+  "notification_channels": ["desktop", "telegram"],
+  "db_path": "eye_care.sqlite",
+  "snooze_duration_seconds": 60,
+  "fallback_to_console": false
+}
