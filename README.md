@@ -42,9 +42,9 @@ Snooze Handling – If you’re in the middle of something, snooze for 60 second
 Automation Ready – Runs silently in the background (pythonw.exe) and can start automatically on system boot.
 
 Extended Config – Locale, notification channels, Telegram credentials, intervals, and more are all in config.json.
+## 📦 Architecture
 
-📦 Architecture
-text
+```
 eye_care_tool/
 ├── core/
 │   ├── activity_monitor.py   # Tracks input & accumulates active seconds
@@ -65,19 +65,22 @@ eye_care_tool/
 ├── config.json               # User settings (overrides defaults)
 ├── requirements.txt
 └── README.md
-Data Flow
-text
-User activity → ActivityMonitor (active seconds) → Scheduler (check threshold) → on_break()
-                                                              ↓
-                                              ┌──────────────┴──────────────┐
-                                              ↓                             ↓
-                                     Desktop Notification      Telegram Notification
-                                              ↓                             ↓
-                                     Interactive Dialog                 (optional)
-                                              ↓
-                                      user_response logged
-                                              ↓
-                                      Reset active seconds
+```
+### Data Flow
+
+```mermaid
+flowchart LR
+    A[User Activity] --> B[ActivityMonitor]
+    B -->|active seconds| C[Scheduler]
+    C -->|threshold reached| D[on_break]
+    D --> E[Desktop Notification]
+    D --> F[Telegram Notification]
+    E --> G[Interactive Dialog]
+    F --> G
+    G -->|user response| H[SQLite Logging]
+    H --> I[Reset active seconds]
+```
+
 🛠️ Installation & Setup
 1. Clone the repository
 bash
