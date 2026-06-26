@@ -11,6 +11,7 @@ from core.config import Config, default_config
 
 logger = logging.getLogger(__name__)
 
+
 class DesktopNotifier:
     """
     Sends desktop notifications with locale-aware messages.
@@ -31,7 +32,6 @@ class DesktopNotifier:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
             logger.error("Failed to load locale '%s': %s. Using English fallback.", locale, e)
-            # Hardcoded fallback (no recursion)
             return {
                 "break_title": "Eye Break Time!",
                 "break_body": "Look at something 20 feet away for 20 seconds.",
@@ -43,12 +43,17 @@ class DesktopNotifier:
         """
         Send a desktop notification using the configured locale.
 
-        Args:
-            title_key: Key in locale JSON for title.
-            body_key: Key in locale JSON for body.
+        This method must NEVER raise. A failed notification (plyer backend
+        unavailable, OS notification service down, etc.) is a real but
+        non-fatal failure — it must never be able to stop the rest of the
+        break flow in main.py's _on_break(). That was the root cause of the
+        notification-spam bug: this used to `raise` on failure, which
+        skipped monitor.reset() and caused the break to re-trigger every
+        second forever.
 
         Returns:
-            True if notification was sent, False if fallback to console used.
+            True if the OS notification was sent, False otherwise (whether
+            or not a console fallback was printed).
         """
         title = self._messages.get(title_key, "Eye Care Reminder")
         body = self._messages.get(body_key, "Time to rest your eyes!")
@@ -63,13 +68,12 @@ class DesktopNotifier:
             logger.info("Desktop notification sent: %s", title)
             return True
         except Exception as e:
-            logger.warning("Failed to send desktop notification: %s", e)
+            logger.error("Failed to send desktop notification: %s", e)
             if self.fallback_to_console:
                 print("\n" + "=" * 50)
                 print(f"[{title}] {body}")
                 print("=" * 50 + "\n")
-                return False
-            raise  # re-raise if no fallback
+            return False
 
     def reload_locale(self) -> None:
         """Reload locale messages (useful if config locale changed)."""
