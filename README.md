@@ -138,6 +138,59 @@ Name it EyeCareTool.
 
 Now it will start automatically when you log in.
 
+
+
+
+## 📚 Scientific Research & Evidence
+
+The 20-20-20 rule is widely recommended for reducing digital eye strain (Computer Vision Syndrome). But what does the actual science say?
+
+### 🏛️ Major Health Organization Endorsements
+
+Leading health authorities globally recommend the 20-20-20 rule:
+
+- **American Academy of Ophthalmology (AAO)** – Recommends the rule as a simple practice to reduce eye fatigue.
+- **Centers for Disease Control and Prevention (CDC)** – Suggests trying the rule to reduce eye strain.
+- **MedlinePlus (U.S. National Library of Medicine)** – Lists the rule as a practical strategy for eye health.
+
+This widespread endorsement by trusted institutions provides a strong foundation for the rule.
+
+### 📊 Clinical Studies Supporting the Rule
+
+Several recent studies have evaluated the rule's effectiveness:
+
+| Study | Findings |
+|-------|----------|
+| **2025 Prospective Study** *(Indian Journal of Clinical and Experimental Ophthalmology, n=268)* | **59% of participants reported symptom relief** (tired eyes, headaches) after 4 weeks of following the rule. |
+| **2023 Randomized Controlled Trial** *(Journal of Optometry, n=29)* | The rule is an **effective strategy for reducing digital eye strain and dry eye symptoms**. |
+| **2025 Systematic Review** | Concluded that the rule is **effective in overcoming Computer Vision Syndrome (CVS)** in workers. |
+
+### 🧐 Critical Perspectives & Conflicting Evidence
+
+While positive findings exist, some research presents a more nuanced view:
+
+- **2022 Systematic Review** *(included 45 clinical trials)* – Found **"very low certainty evidence"** for the rule. Only one study specifically evaluated it, indicating a lack of robust, high-quality research.
+- **2024 Conference Presentation** – Described the rule's clinical impact as **"marginal"** , offering only **"brief symptomatic relief"** .
+- **2026 Commentary** *(Journal "Eye")* – Stated that the rule **"has been found to be ineffective for treating digital eye strain"** .
+- **2023 Survey Study** *(n=432)* – Found that **only 34% of participants practiced the rule** at least occasionally, highlighting a gap between recommendation and real-world adherence.
+
+### 📝 Balanced Summary
+
+| Aspect | Takeaway |
+|--------|----------|
+| ✅ **Safe** | No side effects – it's free and simple to implement. |
+| ✅ **Recommended** | Endorsed by AAO, CDC, and other major health bodies. |
+| ✅ **Some Relief** | Multiple studies show symptom improvement for many users. |
+| ⚠️ **Modest Evidence** | High-quality, large-scale trials are limited. |
+| ⚠️ **Not a Cure** | May not work for everyone; should be part of a broader eye-care routine. |
+
+**Bottom line:** The 20-20-20 rule is a **safe, free, and simple habit** that may help reduce eye strain for many people. It encourages taking regular breaks from screens – which is universally beneficial – and is recommended by leading health organizations. Think of it as a helpful tool, not a guaranteed cure.
+
+*This tool automates the rule so you don't have to remember it – letting you focus on your work while taking care of your eyes.* 👁️
+
+
+
+
 📊 Logging & Analytics
 The tool stores every session and break in eye_care.sqlite (SQLite). You can query the data for personal analytics. Example query to see the last break:
 
